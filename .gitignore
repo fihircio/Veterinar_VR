@@ -1,0 +1,61 @@
+# Unity generated folders
+/Library/
+/Temp/
+/Obj/
+/Build/
+/Builds/
+/Logs/
+/UserSettings/
+/MemoryCaptures/
+/Recordings/
+
+# Unity generated files
+*.csproj
+*.sln
+*.slnx
+*.user
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+*.pidb.meta
+*.pdb.meta
+*.mdb.meta
+
+# IDE/editor
+.vscode/
+.idea/
+.vs/
+*.swp
+*.tmp
+.DS_Store
+
+# Local source-download staging outside Unity import path
+/hospital/
+/warehouse/
+/exports/
+/SourceAssets/
+/avatar-*.glb
+
+# Large vendor asset packs (re-import locally from original sources)
+/Assets/ANIMALS FULL PACK/
+/Assets/ANIMALS FULL PACK.meta
+/Assets/Nature Pack 2/
+/Assets/Nature Pack 2.meta
+/Assets/Toon Farm Pack/
+/Assets/Toon Farm Pack.meta
+/Assets/AllSkyFree/
+/Assets/AllSkyFree.meta
+/Assets/AutoHand/
+/Assets/AutoHand.meta
+/Assets/Farm Animal Sounds/
+/Assets/Farm Animal Sounds.meta
+/Assets/ThirdParty/Free/CGTrader/
+/Assets/ThirdParty/Free/CGTrader.meta
+
+# Plastic SCM local metadata
+/.plastic/
+

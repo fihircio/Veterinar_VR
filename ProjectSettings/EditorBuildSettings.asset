@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1045 &1
+EditorBuildSettings:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Scenes:
+  - enabled: 1
+    path: Assets/_Project/VeterinarVR/Scenes/S00_XRSmokeTest.unity
+    guid: a31ed15fc7c0349bf9053399c10525e5
+  - enabled: 1
+    path: Assets/_Project/VeterinarVR/Scenes/S01_Greeting.unity
+    guid: 6497d2c444684adaa1ddf157e1a758bf
+  - enabled: 1
+    path: Assets/_Project/VeterinarVR/Scenes/S02_HerdObservation.unity
+    guid: cbbc793dff044d96ab562791ffd05000
+  - enabled: 1
+    path: Assets/_Project/VeterinarVR/Scenes/S03_CowScanDecision.unity
+    guid: b810392f572f4a1d8598d01ac3389729
+  - enabled: 1
+    path: Assets/_Project/VeterinarVR/Scenes/S04_AIProcedure.unity
+    guid: 0f3b509bfbdd45ed9f522066c968a839
+  - enabled: 1
+    path: Assets/_Project/VeterinarVR/Scenes/S05_ValidationDashboard.unity
+    guid: cbdd588e6daf4138becd1169055035dd
+  - enabled: 1
+    path: Assets/_Project/VeterinarVR/Scenes/S06_ResultsScoreboard.unity
+    guid: 1640c4b6226647f29da4e8547a565b60
+  m_configObjects:
+    com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 289c1b55c9541489481df5cc06664110, type: 3}
+    com.unity.xr.openxr.settings4: {fileID: 11400000, guid: 7718433d2ef5d4b50abd3f38548dc954, type: 2}
