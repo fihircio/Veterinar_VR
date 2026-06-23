@@ -2,6 +2,7 @@ using System.IO;
 using System.Reflection;
 using TMPro;
 using UnityEditor;
+using UnityEditor.Animations;
 using UnityEditor.Events;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -72,6 +73,11 @@ namespace VeterinarVR.Editor
         private const string NaturePackHerdDressingPrefabPath = NaturePackEnvironmentFolder + "/pref_s02_naturepack2_dressing.prefab";
         private const string NaturePackScanDressingPrefabPath = NaturePackEnvironmentFolder + "/pref_s03_naturepack2_dressing.prefab";
         private const string NaturePackResultsDressingPrefabPath = NaturePackEnvironmentFolder + "/pref_s06_naturepack2_dressing.prefab";
+        private const string GuideAvatarSourceFbxPath = "Assets/ThirdParty/Free/Avatars/Cleaned/avatar_guide_with_talk.fbx";
+        private const string GuideAvatarPrefabPath = "Assets/_Project/VeterinarVR/Prefabs/Characters/pref_guide_avatar.prefab";
+        private const string GuideAnimatorControllerPath = "Assets/_Project/VeterinarVR/Animations/GuideAnimatorController.controller";
+        private const string GuideTalkStateName = "Talk";
+        private const float GuideAvatarFloorY = 0f;
         private static readonly string[] ProgressSceneIds =
         {
             SceneIds.HerdObservation,
@@ -220,6 +226,15 @@ namespace VeterinarVR.Editor
             UpgradeNaturePackTreePrefabMaterialsForUrp();
             EnsureNaturePackSceneDressings();
             ApplyNaturePackDressingsToScenes();
+        }
+
+        [MenuItem("Veterinar VR/Bootstrap/Sync Guide Avatar")]
+        public static void SyncGuideAvatarFromMenu()
+        {
+            EnsureGuideAvatarImport();
+            EnsureGuideAnimatorController();
+            BuildGuideAvatarPrefab();
+            PlaceGuideAvatarInGreetingScene();
         }
 
         public static void SyncSceneSet()
@@ -2836,6 +2851,206 @@ namespace VeterinarVR.Editor
 
                 current = next;
             }
+        }
+
+        private static void EnsureGuideAvatarImport()
+        {
+            var sourceModel = AssetDatabase.LoadAssetAtPath<GameObject>(GuideAvatarSourceFbxPath);
+            if (sourceModel == null)
+            {
+                Debug.LogWarning($"Could not load guide avatar model at '{GuideAvatarSourceFbxPath}'. Did you place the converted FBX there?");
+                return;
+            }
+
+            var importer = AssetImporter.GetAtPath(GuideAvatarSourceFbxPath) as ModelImporter;
+            if (importer == null)
+            {
+                Debug.LogWarning($"Could not acquire ModelImporter for '{GuideAvatarSourceFbxPath}'.");
+                return;
+            }
+
+            // Humanoid rig so the Streamoji skeleton maps to Mecanim body bones.
+            importer.animationType = ModelImporterAnimationType.Human;
+            importer.avatarSetup = ModelImporterAvatarSetup.CreateFromThisModel;
+            importer.importAnimation = true;
+            importer.isReadable = true;
+
+            // Loop the talking clip so the guide plays continuously while idle.
+            ConfigureGuideAvatarClipLoop(importer, loop: true);
+
+            importer.SaveAndReimport();
+
+            var avatar = AssetDatabase.LoadAssetAtPath<Avatar>(GuideAvatarSourceFbxPath);
+            if (avatar == null)
+            {
+                Debug.LogWarning("Guide avatar FBX reimported but no Humanoid Avatar sub-asset was produced. Check the rig mapping in the importer inspector.");
+            }
+            else
+            {
+                Debug.Log($"Guide avatar Avatar created: {avatar.name} ({avatar.humanDescription.human.Length} body bones mapped).");
+            }
+        }
+
+        private static void ConfigureGuideAvatarClipLoop(ModelImporter importer, bool loop)
+        {
+            var clips = importer.clipAnimations;
+            if (clips == null || clips.Length == 0)
+            {
+                // No baked clips yet; the importer will generate defaults on reimport.
+                // We loop the bake in EnsureGuideAvatarImport via the second pass below.
+                return;
+            }
+
+            for (var index = 0; index < clips.Length; index++)
+            {
+                clips[index].loopTime = loop;
+                clips[index].loopPose = loop;
+            }
+
+            importer.clipAnimations = clips;
+        }
+
+        private static void EnsureGuideAnimatorController()
+        {
+            var folder = Path.GetDirectoryName(GuideAnimatorControllerPath);
+            EnsureFolder(folder);
+
+            var clips = AssetDatabase.LoadAllAssetsAtPath(GuideAvatarSourceFbxPath);
+            AnimationClip talkClip = null;
+            foreach (var asset in clips)
+            {
+                if (asset is AnimationClip clip && !clip.name.StartsWith("__preview__"))
+                {
+                    talkClip = clip;
+                    break;
+                }
+            }
+
+            if (talkClip == null)
+            {
+                Debug.LogWarning("Could not find a talking AnimationClip on the guide avatar FBX. Re-run EnsureGuideAvatarImport first.");
+                return;
+            }
+
+            var controller = AnimatorController.CreateAnimatorControllerAtPath(GuideAnimatorControllerPath);
+            controller.AddParameter("Talk", AnimatorControllerParameterType.Trigger);
+
+            var layer = controller.layers[0];
+            var stateMachine = layer.stateMachine;
+            stateMachine.entryPosition = new Vector3(50f, 0f, 0f);
+            stateMachine.anyStatePosition = new Vector3(50f, 100f, 0f);
+            stateMachine.exitPosition = new Vector3(800f, 0f, 0f);
+
+            var idleState = stateMachine.AddState("Idle", new Vector3(300f, 0f, 0f));
+            idleState.motion = talkClip;
+
+            var talkState = stateMachine.AddState(GuideTalkStateName, new Vector3(300f, 120f, 0f));
+            talkState.motion = talkClip;
+
+            var toTalk = idleState.AddTransition(talkState);
+            toTalk.AddCondition(AnimatorConditionMode.If, 0, "Talk");
+            toTalk.hasExitTime = false;
+            toTalk.duration = 0.15f;
+
+            var toIdle = talkState.AddTransition(idleState);
+            toIdle.hasExitTime = true;
+            toIdle.exitTime = 0.95f;
+            toIdle.duration = 0.2f;
+
+            EditorUtility.SetDirty(controller);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            Debug.Log($"Guide AnimatorController created at '{GuideAnimatorControllerPath}' with Idle+Talk states.");
+        }
+
+        private static void BuildGuideAvatarPrefab()
+        {
+            EnsureFolder("Assets/_Project/VeterinarVR/Prefabs/Characters");
+
+            var sourceModel = AssetDatabase.LoadAssetAtPath<GameObject>(GuideAvatarSourceFbxPath);
+            if (sourceModel == null)
+            {
+                Debug.LogWarning($"Could not load guide avatar model at '{GuideAvatarSourceFbxPath}'.");
+                return;
+            }
+
+            var avatar = AssetDatabase.LoadAssetAtPath<Avatar>(GuideAvatarSourceFbxPath);
+            var controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(GuideAnimatorControllerPath);
+
+            var instance = PrefabUtility.InstantiatePrefab(sourceModel) as GameObject;
+            instance.name = "pref_guide_avatar";
+            instance.transform.position = Vector3.zero;
+            instance.transform.rotation = Quaternion.identity;
+            instance.transform.localScale = Vector3.one;
+
+            // Lift the avatar so its feet sit on GuideAvatarFloorY.
+            var bounds = CalculateCombinedBounds(instance);
+            instance.transform.position += new Vector3(0f, GuideAvatarFloorY - bounds.min.y, 0f);
+
+            var animator = instance.GetComponent<Animator>();
+            if (animator == null)
+            {
+                animator = instance.AddComponent<Animator>();
+            }
+
+            animator.runtimeAnimatorController = controller;
+            if (avatar != null)
+            {
+                animator.avatar = avatar;
+            }
+            animator.applyRootMotion = false;
+            animator.cullingMode = AnimatorCullingMode.CullUpdateTransforms;
+            EditorUtility.SetDirty(animator);
+
+            DisableColliders(instance);
+
+            var savedPrefab = PrefabUtility.SaveAsPrefabAsset(instance, GuideAvatarPrefabPath);
+            Object.DestroyImmediate(instance);
+
+            if (savedPrefab != null)
+            {
+                EditorUtility.SetDirty(savedPrefab);
+            }
+
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+        }
+
+        private static void PlaceGuideAvatarInGreetingScene()
+        {
+            var guidePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(GuideAvatarPrefabPath);
+            if (guidePrefab == null)
+            {
+                Debug.LogWarning($"Could not load guide avatar prefab at '{GuideAvatarPrefabPath}'. Run BuildGuideAvatarPrefab first.");
+                return;
+            }
+
+            var scene = EditorSceneManager.OpenScene(GreetingScenePath, OpenSceneMode.Single);
+
+            var environmentRoot = GameObject.Find("GreetingEnvironment");
+            if (environmentRoot == null)
+            {
+                Debug.LogWarning($"Could not find GreetingEnvironment root in '{GreetingScenePath}'.");
+                return;
+            }
+
+            var existing = FindChildByName(environmentRoot.transform, "GuideAvatar");
+            if (existing != null)
+            {
+                Object.DestroyImmediate(existing.gameObject);
+            }
+
+            var instance = PrefabUtility.InstantiatePrefab(guidePrefab) as GameObject;
+            instance.name = "GuideAvatar";
+            instance.transform.SetParent(environmentRoot.transform, false);
+            // Stand beside the user spawn (origin), facing the user, slightly off to the side.
+            instance.transform.localPosition = new Vector3(-1.6f, 0f, 3.2f);
+            instance.transform.localRotation = Quaternion.Euler(0f, 55f, 0f);
+            instance.transform.localScale = Vector3.one;
+
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+            Debug.Log($"Guide avatar placed in '{GreetingScenePath}'.");
         }
     }
 }
