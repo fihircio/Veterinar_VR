@@ -2878,6 +2878,10 @@ namespace VeterinarVR.Editor
             // Loop the talking clip so the guide plays continuously while idle.
             ConfigureGuideAvatarClipLoop(importer, loop: true);
 
+            // Stylized Streamoji meshes need conservative muscle ranges or the
+            // auto-detected twist/stretch values deform limbs during animation.
+            NormalizeGuideAvatarMuscles(importer);
+
             importer.SaveAndReimport();
 
             var avatar = AssetDatabase.LoadAssetAtPath<Avatar>(GuideAvatarSourceFbxPath);
@@ -2889,6 +2893,32 @@ namespace VeterinarVR.Editor
             {
                 Debug.Log($"Guide avatar Avatar created: {avatar.name} ({avatar.humanDescription.human.Length} body bones mapped).");
             }
+        }
+
+        private static void NormalizeGuideAvatarMuscles(ModelImporter importer)
+        {
+            // Unity 6 does not let us rebuild the Avatar in-place via the API reliably,
+            // but the twist/stretch/hand values are exposed on humanDescription and get
+            // baked into the Avatar on reimport. Conservative values keep stylized rigs
+            // from over-twisting (the main cause of the deformations seen in the muscle tab).
+            var description = importer.humanDescription;
+
+            // Stretch = how far the limb can lengthen beyond rest pose. 0 = rigid,
+            // 1 = very loose. Stylized characters look broken past ~0.05.
+            description.armStretch = 0.02f;
+            description.legStretch = 0.02f;
+
+            // Twist = how rotation distributes between the upper/lower segments of a limb.
+            // 0.5 = even split (natural); high values twist joints past the mesh's tolerance.
+            description.upperArmTwist = 0.5f;
+            description.lowerArmTwist = 0.5f;
+            description.upperLegTwist = 0.5f;
+            description.lowerLegTwist = 0.5f;
+
+            description.feetSpacing = 0f;
+            description.hasTranslationDoF = true;
+
+            importer.humanDescription = description;
         }
 
         private static void ConfigureGuideAvatarClipLoop(ModelImporter importer, bool loop)
@@ -3043,9 +3073,11 @@ namespace VeterinarVR.Editor
             var instance = PrefabUtility.InstantiatePrefab(guidePrefab) as GameObject;
             instance.name = "GuideAvatar";
             instance.transform.SetParent(environmentRoot.transform, false);
-            // Stand beside the user spawn (origin), facing the user, slightly off to the side.
-            instance.transform.localPosition = new Vector3(-1.6f, 0f, 3.2f);
-            instance.transform.localRotation = Quaternion.Euler(0f, 55f, 0f);
+            // Stand IN FRONT of the UI panel (panel is at z=2.2, facing +z), offset to the
+            // player's right so the guide gestures beside the panel, not behind it.
+            // Facing back toward the user spawn at origin (rotate -55deg around Y).
+            instance.transform.localPosition = new Vector3(1.5f, 0f, 3.0f);
+            instance.transform.localRotation = Quaternion.Euler(0f, -55f, 0f);
             instance.transform.localScale = Vector3.one;
 
             EditorSceneManager.MarkSceneDirty(scene);
