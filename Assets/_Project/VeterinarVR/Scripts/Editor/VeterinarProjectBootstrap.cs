@@ -73,11 +73,24 @@ namespace VeterinarVR.Editor
         private const string NaturePackHerdDressingPrefabPath = NaturePackEnvironmentFolder + "/pref_s02_naturepack2_dressing.prefab";
         private const string NaturePackScanDressingPrefabPath = NaturePackEnvironmentFolder + "/pref_s03_naturepack2_dressing.prefab";
         private const string NaturePackResultsDressingPrefabPath = NaturePackEnvironmentFolder + "/pref_s06_naturepack2_dressing.prefab";
-        private const string GuideAvatarSourceFbxPath = "Assets/ThirdParty/Free/Avatars/Cleaned/avatar_guide_with_talk.fbx";
+        // Guide avatar uses Streamoji's purpose-built humanoid avatar assets.
+        // Masculine.fbx ships with a pre-tuned humanDescription (no auto-generation,
+        // no muscle guessing) which is what prevents the limb deformation we hit when
+        // hand-rigging the converted GLB.
+        private const string GuideAvatarSourceFbxPath = "Assets/Streamoji/AnimationAvatars/Masculine.fbx";
+        // The talking clip lives on the combined avatar FBX (Blender 3.5 merge output).
+        // It is rig-native (62 bones, frames 0-234) so it binds to the Streamoji armature
+        // without retargeting. Blender 5 changed the Action API (no .fcurves), so the
+        // standalone-clip conversion is blocked; the combined FBX already has the merged clip.
+        private const string GuideTalkClipFbxPath = "Assets/ThirdParty/Free/Avatars/Cleaned/avatar_guide_with_talk.fbx";
         private const string GuideAvatarPrefabPath = "Assets/_Project/VeterinarVR/Prefabs/Characters/pref_guide_avatar.prefab";
         private const string GuideAnimatorControllerPath = "Assets/_Project/VeterinarVR/Animations/GuideAnimatorController.controller";
         private const string GuideTalkStateName = "Talk";
-        private const float GuideAvatarFloorY = 0f;
+        // Final placement matches the user's idle reference avatar (avatar_guide_a_Unity in S01).
+        private const float GuideAvatarPosX = -1.12f;
+        private const float GuideAvatarPosY = 0.01f;
+        private const float GuideAvatarPosZ = 1.75f;
+        private const float GuideAvatarRotY = -218.973f;
         private static readonly string[] ProgressSceneIds =
         {
             SceneIds.HerdObservation,
@@ -2855,89 +2868,50 @@ namespace VeterinarVR.Editor
 
         private static void EnsureGuideAvatarImport()
         {
-            var sourceModel = AssetDatabase.LoadAssetAtPath<GameObject>(GuideAvatarSourceFbxPath);
-            if (sourceModel == null)
-            {
-                Debug.LogWarning($"Could not load guide avatar model at '{GuideAvatarSourceFbxPath}'. Did you place the converted FBX there?");
-                return;
-            }
-
-            var importer = AssetImporter.GetAtPath(GuideAvatarSourceFbxPath) as ModelImporter;
-            if (importer == null)
-            {
-                Debug.LogWarning($"Could not acquire ModelImporter for '{GuideAvatarSourceFbxPath}'.");
-                return;
-            }
-
-            // Humanoid rig so the Streamoji skeleton maps to Mecanim body bones.
-            importer.animationType = ModelImporterAnimationType.Human;
-            importer.avatarSetup = ModelImporterAvatarSetup.CreateFromThisModel;
-            importer.importAnimation = true;
-            importer.isReadable = true;
-
-            // Loop the talking clip so the guide plays continuously while idle.
-            ConfigureGuideAvatarClipLoop(importer, loop: true);
-
-            // Stylized Streamoji meshes need conservative muscle ranges or the
-            // auto-detected twist/stretch values deform limbs during animation.
-            NormalizeGuideAvatarMuscles(importer);
-
-            importer.SaveAndReimport();
-
+            // Masculine.fbx ships as a fully-configured Humanoid avatar (animationType=3,
+            // avatarSetup=1, complete humanDescription). We do NOT reconfigure it here -
+            // touching the importer would destroy the Streamoji team's tuned muscle
+            // mapping, which is exactly what causes the limb deformation. We only verify
+            // the Avatar sub-asset resolves so downstream steps can rely on it.
             var avatar = AssetDatabase.LoadAssetAtPath<Avatar>(GuideAvatarSourceFbxPath);
             if (avatar == null)
             {
-                Debug.LogWarning("Guide avatar FBX reimported but no Humanoid Avatar sub-asset was produced. Check the rig mapping in the importer inspector.");
-            }
-            else
-            {
-                Debug.Log($"Guide avatar Avatar created: {avatar.name} ({avatar.humanDescription.human.Length} body bones mapped).");
-            }
-        }
-
-        private static void NormalizeGuideAvatarMuscles(ModelImporter importer)
-        {
-            // Unity 6 does not let us rebuild the Avatar in-place via the API reliably,
-            // but the twist/stretch/hand values are exposed on humanDescription and get
-            // baked into the Avatar on reimport. Conservative values keep stylized rigs
-            // from over-twisting (the main cause of the deformations seen in the muscle tab).
-            var description = importer.humanDescription;
-
-            // Stretch = how far the limb can lengthen beyond rest pose. 0 = rigid,
-            // 1 = very loose. Stylized characters look broken past ~0.05.
-            description.armStretch = 0.02f;
-            description.legStretch = 0.02f;
-
-            // Twist = how rotation distributes between the upper/lower segments of a limb.
-            // 0.5 = even split (natural); high values twist joints past the mesh's tolerance.
-            description.upperArmTwist = 0.5f;
-            description.lowerArmTwist = 0.5f;
-            description.upperLegTwist = 0.5f;
-            description.lowerLegTwist = 0.5f;
-
-            description.feetSpacing = 0f;
-            description.hasTranslationDoF = true;
-
-            importer.humanDescription = description;
-        }
-
-        private static void ConfigureGuideAvatarClipLoop(ModelImporter importer, bool loop)
-        {
-            var clips = importer.clipAnimations;
-            if (clips == null || clips.Length == 0)
-            {
-                // No baked clips yet; the importer will generate defaults on reimport.
-                // We loop the bake in EnsureGuideAvatarImport via the second pass below.
+                Debug.LogWarning($"Masculine.fbx at '{GuideAvatarSourceFbxPath}' has no Humanoid Avatar sub-asset. Check the Streamoji import is intact.");
                 return;
             }
 
-            for (var index = 0; index < clips.Length; index++)
+            Debug.Log($"Guide avatar source OK: {avatar.name} (valid={avatar.isValid}, human={avatar.isHuman}, bodyBones={avatar.humanDescription.human.Length}).");
+
+            // The talking clip comes from a separate rig-native FBX (F_Talking_Variations_001),
+            // already converted from GLB via Blender. Verify it loads too.
+            var talkClips = AssetDatabase.LoadAllAssetsAtPath(GuideTalkClipFbxPath);
+            var talkClip = FindNonPreviewClip(talkClips);
+            if (talkClip == null)
             {
-                clips[index].loopTime = loop;
-                clips[index].loopPose = loop;
+                Debug.LogWarning($"No usable AnimationClip found at '{GuideTalkClipFbxPath}'. The Talk state will be skipped.");
+            }
+            else
+            {
+                Debug.Log($"Guide talk clip OK: {talkClip.name} ({talkClip.length:F2}s).");
+            }
+        }
+
+        private static AnimationClip FindNonPreviewClip(UnityEngine.Object[] assets)
+        {
+            if (assets == null)
+            {
+                return null;
             }
 
-            importer.clipAnimations = clips;
+            foreach (var asset in assets)
+            {
+                if (asset is AnimationClip clip && !clip.name.StartsWith("__preview__", System.StringComparison.Ordinal))
+                {
+                    return clip;
+                }
+            }
+
+            return null;
         }
 
         private static void EnsureGuideAnimatorController()
@@ -2945,22 +2919,9 @@ namespace VeterinarVR.Editor
             var folder = Path.GetDirectoryName(GuideAnimatorControllerPath);
             EnsureFolder(folder);
 
-            var clips = AssetDatabase.LoadAllAssetsAtPath(GuideAvatarSourceFbxPath);
-            AnimationClip talkClip = null;
-            foreach (var asset in clips)
-            {
-                if (asset is AnimationClip clip && !clip.name.StartsWith("__preview__"))
-                {
-                    talkClip = clip;
-                    break;
-                }
-            }
-
-            if (talkClip == null)
-            {
-                Debug.LogWarning("Could not find a talking AnimationClip on the guide avatar FBX. Re-run EnsureGuideAvatarImport first.");
-                return;
-            }
+            // Load the talk clip (and Streamoji's idle as a calm default if present).
+            var talkClip = FindNonPreviewClip(AssetDatabase.LoadAllAssetsAtPath(GuideTalkClipFbxPath));
+            var idleClip = AssetDatabase.LoadAssetAtPath<AnimationClip>("Assets/Streamoji/Animations/IdleAnimation.anim");
 
             var controller = AnimatorController.CreateAnimatorControllerAtPath(GuideAnimatorControllerPath);
             controller.AddParameter("Talk", AnimatorControllerParameterType.Trigger);
@@ -2971,26 +2932,33 @@ namespace VeterinarVR.Editor
             stateMachine.anyStatePosition = new Vector3(50f, 100f, 0f);
             stateMachine.exitPosition = new Vector3(800f, 0f, 0f);
 
+            // Idle = the calm Streamoji idle if present, otherwise fall back to the talk
+            // clip so the guide is never motionless. The talk clip plays as a default
+            // loop when no dedicated idle is available.
+            var idleMotion = idleClip != null ? (Motion)idleClip : talkClip;
             var idleState = stateMachine.AddState("Idle", new Vector3(300f, 0f, 0f));
-            idleState.motion = talkClip;
+            idleState.motion = idleMotion;
 
-            var talkState = stateMachine.AddState(GuideTalkStateName, new Vector3(300f, 120f, 0f));
-            talkState.motion = talkClip;
+            if (talkClip != null && idleMotion != talkClip)
+            {
+                var talkState = stateMachine.AddState(GuideTalkStateName, new Vector3(300f, 120f, 0f));
+                talkState.motion = talkClip;
 
-            var toTalk = idleState.AddTransition(talkState);
-            toTalk.AddCondition(AnimatorConditionMode.If, 0, "Talk");
-            toTalk.hasExitTime = false;
-            toTalk.duration = 0.15f;
+                var toTalk = idleState.AddTransition(talkState);
+                toTalk.AddCondition(AnimatorConditionMode.If, 0, "Talk");
+                toTalk.hasExitTime = false;
+                toTalk.duration = 0.15f;
 
-            var toIdle = talkState.AddTransition(idleState);
-            toIdle.hasExitTime = true;
-            toIdle.exitTime = 0.95f;
-            toIdle.duration = 0.2f;
+                var toIdle = talkState.AddTransition(idleState);
+                toIdle.hasExitTime = true;
+                toIdle.exitTime = 0.95f;
+                toIdle.duration = 0.2f;
+            }
 
             EditorUtility.SetDirty(controller);
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
-            Debug.Log($"Guide AnimatorController created at '{GuideAnimatorControllerPath}' with Idle+Talk states.");
+            Debug.Log($"Guide AnimatorController created at '{GuideAnimatorControllerPath}' (idle={(idleMotion != null ? idleMotion.name : "none")}, talk={(talkClip != null ? talkClip.name : "none")}).");
         }
 
         private static void BuildGuideAvatarPrefab()
@@ -3004,6 +2972,7 @@ namespace VeterinarVR.Editor
                 return;
             }
 
+            // Masculine.fbx already carries a valid Humanoid Avatar; load it to wire the Animator.
             var avatar = AssetDatabase.LoadAssetAtPath<Avatar>(GuideAvatarSourceFbxPath);
             var controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(GuideAnimatorControllerPath);
 
@@ -3012,10 +2981,6 @@ namespace VeterinarVR.Editor
             instance.transform.position = Vector3.zero;
             instance.transform.rotation = Quaternion.identity;
             instance.transform.localScale = Vector3.one;
-
-            // Lift the avatar so its feet sit on GuideAvatarFloorY.
-            var bounds = CalculateCombinedBounds(instance);
-            instance.transform.position += new Vector3(0f, GuideAvatarFloorY - bounds.min.y, 0f);
 
             var animator = instance.GetComponent<Animator>();
             if (animator == null)
@@ -3064,25 +3029,31 @@ namespace VeterinarVR.Editor
                 return;
             }
 
-            var existing = FindChildByName(environmentRoot.transform, "GuideAvatar");
-            if (existing != null)
+            // Remove both our previous placement and the user's idle reference
+            // (avatar_guide_a_Unity) so only the animated guide remains at the spot.
+            var existingGuide = FindChildByName(environmentRoot.transform, "GuideAvatar");
+            if (existingGuide != null)
             {
-                Object.DestroyImmediate(existing.gameObject);
+                Object.DestroyImmediate(existingGuide.gameObject);
+            }
+
+            var idleReference = FindChildByName(environmentRoot.transform, "avatar_guide_a_Unity");
+            if (idleReference != null)
+            {
+                Object.DestroyImmediate(idleReference.gameObject);
             }
 
             var instance = PrefabUtility.InstantiatePrefab(guidePrefab) as GameObject;
             instance.name = "GuideAvatar";
             instance.transform.SetParent(environmentRoot.transform, false);
-            // Stand IN FRONT of the UI panel (panel is at z=2.2, facing +z), offset to the
-            // player's right so the guide gestures beside the panel, not behind it.
-            // Facing back toward the user spawn at origin (rotate -55deg around Y).
-            instance.transform.localPosition = new Vector3(1.5f, 0f, 3.0f);
-            instance.transform.localRotation = Quaternion.Euler(0f, -55f, 0f);
+            // Coordinates match the user's idle reference (avatar_guide_a_Unity) placement.
+            instance.transform.localPosition = new Vector3(GuideAvatarPosX, GuideAvatarPosY, GuideAvatarPosZ);
+            instance.transform.localRotation = Quaternion.Euler(0f, GuideAvatarRotY, 0f);
             instance.transform.localScale = Vector3.one;
 
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
-            Debug.Log($"Guide avatar placed in '{GreetingScenePath}'.");
+            Debug.Log($"Guide avatar placed in '{GreetingScenePath}' at ({GuideAvatarPosX}, {GuideAvatarPosY}, {GuideAvatarPosZ}) rotY={GuideAvatarRotY}.");
         }
     }
 }

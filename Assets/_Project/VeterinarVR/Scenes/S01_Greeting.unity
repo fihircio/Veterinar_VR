@@ -607,7 +607,7 @@ Transform:
   - {fileID: 1723681327}
   - {fileID: 676917584}
   - {fileID: 945949068}
-  - {fileID: 1434523418}
+  - {fileID: 1431754156}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &619129245
@@ -1304,7 +1304,7 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1391538662}
   m_CullTransparentMesh: 1
---- !u!1001 &1434523417
+--- !u!1001 &1431754155
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
@@ -1318,19 +1318,19 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5469804198515631865, guid: f02ae6559d31c41a7848a95ce2cc1956, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 1.5
+      value: -1.12
       objectReference: {fileID: 0}
     - target: {fileID: 5469804198515631865, guid: f02ae6559d31c41a7848a95ce2cc1956, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 0
+      value: 0.01
       objectReference: {fileID: 0}
     - target: {fileID: 5469804198515631865, guid: f02ae6559d31c41a7848a95ce2cc1956, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 3
+      value: 1.75
       objectReference: {fileID: 0}
     - target: {fileID: 5469804198515631865, guid: f02ae6559d31c41a7848a95ce2cc1956, type: 3}
       propertyPath: m_LocalRotation.w
-      value: 0.8870109
+      value: -0.33358482
       objectReference: {fileID: 0}
     - target: {fileID: 5469804198515631865, guid: f02ae6559d31c41a7848a95ce2cc1956, type: 3}
       propertyPath: m_LocalRotation.x
@@ -1338,7 +1338,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5469804198515631865, guid: f02ae6559d31c41a7848a95ce2cc1956, type: 3}
       propertyPath: m_LocalRotation.y
-      value: -0.46174863
+      value: -0.9427201
       objectReference: {fileID: 0}
     - target: {fileID: 5469804198515631865, guid: f02ae6559d31c41a7848a95ce2cc1956, type: 3}
       propertyPath: m_LocalRotation.z
@@ -1361,10 +1361,10 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: f02ae6559d31c41a7848a95ce2cc1956, type: 3}
---- !u!4 &1434523418 stripped
+--- !u!4 &1431754156 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 5469804198515631865, guid: f02ae6559d31c41a7848a95ce2cc1956, type: 3}
-  m_PrefabInstance: {fileID: 1434523417}
+  m_PrefabInstance: {fileID: 1431754155}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &1457321295
 PrefabInstance:
