@@ -38,6 +38,15 @@ namespace VeterinarVR.Core
 
         public bool HasLanguageSelection { get; private set; }
 
+        [field: SerializeField]
+        public float ElapsedTime { get; private set; }
+
+        [field: SerializeField]
+        public string SelectedSemenType { get; private set; } = string.Empty;
+
+        [field: SerializeField]
+        public int SpatialErrorCount { get; private set; }
+
         private void Awake()
         {
             if (Instance != null && Instance != this)
@@ -48,6 +57,14 @@ namespace VeterinarVR.Core
 
             Instance = this;
             DontDestroyOnLoad(gameObject);
+        }
+
+        private void Update()
+        {
+            if (HasLanguageSelection && !IsProcedureCompleted)
+            {
+                ElapsedTime += Time.deltaTime;
+            }
         }
 
         public void SetLanguage(SessionLanguage language)
@@ -99,6 +116,16 @@ namespace VeterinarVR.Core
             IsProcedureCompleted = isComplete;
         }
 
+        public void SelectSemen(string semenType)
+        {
+            SelectedSemenType = semenType ?? string.Empty;
+        }
+
+        public void IncrementSpatialErrors()
+        {
+            SpatialErrorCount++;
+        }
+
         public void ResetSession()
         {
             SelectedLanguage = SessionLanguage.English;
@@ -112,6 +139,9 @@ namespace VeterinarVR.Core
             TotalProcedureSteps = 0;
             IsProcedureCompleted = false;
             HasLanguageSelection = false;
+            ElapsedTime = 0f;
+            SelectedSemenType = string.Empty;
+            SpatialErrorCount = 0;
         }
     }
 }

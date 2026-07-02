@@ -21,6 +21,7 @@ namespace VeterinarVR.UI
         [SerializeField] private Text outcomeLabel;
         [SerializeField] private Text badgeLabel;
         [SerializeField] private Text recommendationLabel;
+        [SerializeField] private Text timeLabel;
 
         private TrainingContentCatalog contentCatalog;
         public int TotalScore => sessionState != null ? sessionState.TotalScore : 0;
@@ -46,6 +47,7 @@ namespace VeterinarVR.UI
         {
             AudioRuntimeDirector.PlayResultCue();
             RefreshView();
+            TriggerGuideFeedback();
         }
 
         public void ShowResults()
@@ -56,6 +58,52 @@ namespace VeterinarVR.UI
             }
 
             RefreshView();
+            TriggerGuideFeedback();
+        }
+
+        private void TriggerGuideFeedback()
+        {
+            var narrator = FindFirstObjectByType<GuideNarrator>();
+            if (narrator == null || sessionState == null)
+            {
+                return;
+            }
+
+            string badge = GetBadgeTier();
+            string text = "";
+
+            if (IsBahasa())
+            {
+                if (badge == "Emas" || sessionState.TotalScore >= 60)
+                {
+                    text = "Tahniah! Anda telah menunjukkan kecekapan luar biasa dalam pembiakan ruminan. Anda bersedia untuk menerokai ladang fizikal di MAHA!";
+                }
+                else if (badge == "Perak" || sessionState.TotalScore >= 35)
+                {
+                    text = "Syabas! Anda kompeten dalam pembiakan ruminan. Latih lagi untuk mencapai ketepatan sempurna.";
+                }
+                else
+                {
+                    text = "Anda telah menyelesaikan latihan, tetapi masih ada ruang untuk penambahbaikan. Sila ulangi modul untuk memperkemas kemahiran anda.";
+                }
+            }
+            else
+            {
+                if (badge == "Gold" || sessionState.TotalScore >= 60)
+                {
+                    text = "Congratulations! You have demonstrated exceptional mastery in ruminant breeding. You are ready to explore the physical farm at MAHA!";
+                }
+                else if (badge == "Silver" || sessionState.TotalScore >= 35)
+                {
+                    text = "Great job! You are competent in ruminant breeding. Practice a bit more to achieve perfect accuracy.";
+                }
+                else
+                {
+                    text = "You've completed the training, but there is room for improvement. Please repeat the modules to refine your skills.";
+                }
+            }
+
+            narrator.Speak(text);
         }
 
         public void HideResults()
@@ -156,6 +204,15 @@ namespace VeterinarVR.UI
             if (recommendationLabel != null)
             {
                 recommendationLabel.text = GetRecommendation();
+            }
+
+            if (timeLabel != null)
+            {
+                int minutes = Mathf.FloorToInt(sessionState.ElapsedTime / 60f);
+                int seconds = Mathf.FloorToInt(sessionState.ElapsedTime % 60f);
+                timeLabel.text = IsBahasa()
+                    ? $"Masa: {minutes:00}:{seconds:00}"
+                    : $"Time: {minutes:00}:{seconds:00}";
             }
         }
 

@@ -7,6 +7,16 @@ using VeterinarVR.Data;
 
 namespace VeterinarVR.Gameplay
 {
+    public enum AIProcedurePhase
+    {
+        SemenSelection,
+        ThawingPrep,
+        EquipmentAssembly,
+        InsertionLogic,
+        DepositionValidation,
+        Complete
+    }
+
     public sealed class AIProcedureController : MonoBehaviour
     {
         [SerializeField] private TrainingSessionState sessionState;
@@ -29,6 +39,7 @@ namespace VeterinarVR.Gameplay
         private TrainingContentCatalog contentCatalog;
         public int CurrentStepIndex { get; private set; }
         public bool HasStarted { get; private set; }
+        public bool IsAwaitingSemenSelection { get; private set; } = true;
         public bool IsProcedureComplete => CurrentStepIndex >= GetStepCount() && GetStepCount() > 0;
         public bool IsAwaitingPlacementInteraction =>
             HasStarted &&
@@ -48,6 +59,47 @@ namespace VeterinarVR.Gameplay
 
         public event Action<int, string> StepAdvanced;
         public event Action ProcedureCompleted;
+        public event Action<AIProcedurePhase> PhaseAdvanced;
+
+        public AIProcedurePhase CurrentPhase { get; private set; } = AIProcedurePhase.SemenSelection;
+
+        public void AdvancePhase(bool completedCorrectly = true)
+        {
+            if (CurrentPhase == AIProcedurePhase.Complete) return;
+
+            CurrentPhase = CurrentPhase switch
+            {
+                AIProcedurePhase.SemenSelection    => AIProcedurePhase.ThawingPrep,
+                AIProcedurePhase.ThawingPrep       => AIProcedurePhase.EquipmentAssembly,
+                AIProcedurePhase.EquipmentAssembly => AIProcedurePhase.InsertionLogic,
+                AIProcedurePhase.InsertionLogic    => AIProcedurePhase.DepositionValidation,
+                AIProcedurePhase.DepositionValidation => AIProcedurePhase.Complete,
+                _ => AIProcedurePhase.Complete
+            };
+
+            if (completedCorrectly && scoreManager != null)
+            {
+                scoreManager.AwardPoints(10);
+            }
+
+            AudioRuntimeDirector.PlayProcedureFoley();
+            PhaseAdvanced?.Invoke(CurrentPhase);
+
+            if (CurrentPhase == AIProcedurePhase.Complete)
+            {
+                ProcedureCompleted?.Invoke();
+            }
+        }
+
+        /// <summary>Called by InsertionAngleDetector when the 45-degree entry angle is confirmed correct.</summary>
+        public void OnAngleEntryValidated(float angleDegrees)
+        {
+            if (CurrentPhase != AIProcedurePhase.InsertionLogic) return;
+            RefreshView(IsBahasa()
+                ? $"Sudut masuk betul ({angleDegrees:F0}°). Luruskan pistolet dan teruskan."
+                : $"Correct entry angle ({angleDegrees:F0}°). Straighten the pistolette and continue.");
+            CompletePickupStep();
+        }
 
         private void Awake()
         {
@@ -74,8 +126,44 @@ namespace VeterinarVR.Gameplay
             RefreshView();
         }
 
+        public void SelectSemen(string semenType)
+        {
+            if (string.IsNullOrWhiteSpace(semenType))
+            {
+                return;
+            }
+
+            IsAwaitingSemenSelection = false;
+
+            if (sessionState != null)
+            {
+                sessionState.SelectSemen(semenType);
+            }
+
+            // Award bonus points for correct semen choice (Dairy for Cow_B Holstein)
+            bool isDairyForHolstein = semenType.Contains("Dairy") || semenType.Contains("Susu");
+            bool isCowB = sessionState != null && sessionState.SelectedCowId == "Cow_B";
+            if (isDairyForHolstein && isCowB && scoreManager != null)
+            {
+                scoreManager.AwardPoints(10);
+            }
+
+            AudioRuntimeDirector.PlayUiClick();
+            RefreshView(IsBahasa()
+                ? $"Semen dipilih: {semenType}. Tekan Mula Prosedur untuk meneruskan."
+                : $"Semen selected: {semenType}. Press Start Procedure to continue.");
+        }
+
         public void StartProcedure()
         {
+            if (IsAwaitingSemenSelection)
+            {
+                RefreshView(IsBahasa()
+                    ? "Sila pilih jenis semen sebelum memulakan prosedur."
+                    : "Please select a semen type before starting the procedure.");
+                return;
+            }
+
             if (GetStepCount() == 0)
             {
                 RefreshView(IsBahasa() ? "Tiada langkah prosedur dikonfigurasikan." : "No procedure steps are configured.");
@@ -265,7 +353,7 @@ namespace VeterinarVR.Gameplay
 
             if (beginButtonRoot != null)
             {
-                beginButtonRoot.SetActive(!HasStarted);
+                beginButtonRoot.SetActive(!HasStarted && !IsAwaitingSemenSelection);
             }
 
             if (actionButtonsRoot != null)

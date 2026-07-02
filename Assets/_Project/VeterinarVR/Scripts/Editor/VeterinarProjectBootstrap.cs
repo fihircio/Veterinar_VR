@@ -47,6 +47,8 @@ namespace VeterinarVR.Editor
         private const string DaySkyboxPath = RenderingFolder + "/VeterinarVR_DaySkybox.mat";
         private const string TrainingContentCatalogPath = ResourcesFolder + "/TrainingContentCatalog.asset";
         private const string AudioContentCatalogPath = ResourcesFolder + "/AudioContentCatalog.asset";
+        private const string QuestionsFolder = "Assets/_Project/VeterinarVR/ScriptableObjects/Questions";
+        private const string CowsFolder = "Assets/_Project/VeterinarVR/ScriptableObjects/Cows";
         private const string ToonFarmRoot = "Assets/Toon Farm Pack/Prefabs";
         private const string AnimalPackRoot = "Assets/Animals Full Pack/Farm Animals Pack";
         private const string AllSkyDayBlueSkyPath = "Assets/AllSkyFree/Cartoon Base BlueSky/Day_BlueSky_Nothing.mat";
@@ -183,6 +185,7 @@ namespace VeterinarVR.Editor
         public static void SyncTrainingContentCatalogFromMenu()
         {
             EnsureTrainingContentCatalogAsset();
+            EnsureCowAndQuestionDataAssets();
         }
 
         [MenuItem("Veterinar VR/Bootstrap/Sync Audio Content Catalog")]
@@ -3054,6 +3057,165 @@ namespace VeterinarVR.Editor
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
             Debug.Log($"Guide avatar placed in '{GreetingScenePath}' at ({GuideAvatarPosX}, {GuideAvatarPosY}, {GuideAvatarPosZ}) rotY={GuideAvatarRotY}.");
+        }
+
+        public static void EnsureCowAndQuestionDataAssets()
+        {
+            EnsureFolder(QuestionsFolder);
+            EnsureFolder(CowsFolder);
+
+            // 1. Create QuestionData Assets
+            var qS03Ready = CreateQuestionAsset(
+                "Q_S03_Ready",
+                "Is Cow B ready for insemination based on the scan parameters (38.5°C and mature follicle)?",
+                new[] { "Yes (Mature follicle and normal temperature)", "No (Follicle is too small)", "No (Temperature indicates fever)" },
+                0,
+                10
+            );
+
+            var qS05Traits = CreateQuestionAsset(
+                "Q_S05_Traits",
+                "Which cow shows optimal genetic traits and health indicators for breeding?",
+                new[] { "Cow A (Low milk yield, no heat)", "Cow B (High milk yield, active heat signs)", "Cow C (Average milk yield, silent heat)" },
+                1,
+                10
+            );
+
+            var qS05Records = CreateQuestionAsset(
+                "Q_S05_Records",
+                "What is the primary benefit of digital record-keeping in herd management?",
+                new[] { "Tracks lineage, heat cycles, and genetic progress accurately", "Reduces daily feed consumption", "Guarantees twins in every pregnancy" },
+                0,
+                10
+            );
+
+            // 2. Create CowData Assets
+            var cowA = CreateCowAsset(
+                "Cow_A",
+                "Cow A",
+                "Herd Group Alpha",
+                "Low milk yield, no signs of heat.",
+                new QuestionData[0]
+            );
+
+            var cowB = CreateCowAsset(
+                "Cow_B",
+                "Cow B (Holstein)",
+                "Herd Group Beta",
+                "High milk yield, clear mucus discharge, smart collar alert active.",
+                new[] { qS03Ready }
+            );
+
+            var cowC = CreateCowAsset(
+                "Cow_C",
+                "Cow C",
+                "Herd Group Alpha",
+                "Average milk yield, restless behaviour but no physical signs of heat.",
+                new QuestionData[0]
+            );
+
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+
+            // 3. Automatically locate ValidationDashboardController in S05 and link availableCows array
+            LinkCowsToValidationDashboard(new[] { cowA, cowB, cowC });
+            LinkCowsToCowScanDecision(new[] { cowA, cowB, cowC });
+        }
+
+        private static QuestionData CreateQuestionAsset(string id, string prompt, string[] options, int correctIndex, int score)
+        {
+            var path = $"{QuestionsFolder}/{id}.asset";
+            var asset = AssetDatabase.LoadAssetAtPath<QuestionData>(path);
+            if (asset == null)
+            {
+                asset = ScriptableObject.CreateInstance<QuestionData>();
+                AssetDatabase.CreateAsset(asset, path);
+            }
+
+            SetPrivateObject(asset, "questionId", id);
+            SetPrivateObject(asset, "prompt", prompt);
+            SetPrivateObject(asset, "answerOptions", options);
+            SetPrivateObject(asset, "correctAnswerIndex", correctIndex);
+            SetPrivateObject(asset, "scoreValue", score);
+
+            EditorUtility.SetDirty(asset);
+            return asset;
+        }
+
+        private static CowData CreateCowAsset(string id, string name, string group, string notes, QuestionData[] questionSet)
+        {
+            var path = $"{CowsFolder}/{id}.asset";
+            var asset = AssetDatabase.LoadAssetAtPath<CowData>(path);
+            if (asset == null)
+            {
+                asset = ScriptableObject.CreateInstance<CowData>();
+                AssetDatabase.CreateAsset(asset, path);
+            }
+
+            SetPrivateObject(asset, "cowId", id);
+            SetPrivateObject(asset, "displayName", name);
+            SetPrivateObject(asset, "herdGroup", group);
+            SetPrivateObject(asset, "notes", notes);
+            SetPrivateObject(asset, "questionSet", questionSet);
+
+            EditorUtility.SetDirty(asset);
+            return asset;
+        }
+
+        private static void LinkCowsToValidationDashboard(CowData[] cows)
+        {
+            var scene = EditorSceneManager.OpenScene(ValidationScenePath, OpenSceneMode.Single);
+            var controller = Object.FindFirstObjectByType<ValidationDashboardController>();
+            if (controller != null)
+            {
+                SetPrivateObject(controller, "availableCows", cows);
+
+                // Wire the two S05 validation MCQ questions
+                var qTraits = AssetDatabase.LoadAssetAtPath<QuestionData>($"{QuestionsFolder}/Q_S05_Traits.asset");
+                var qRecords = AssetDatabase.LoadAssetAtPath<QuestionData>($"{QuestionsFolder}/Q_S05_Records.asset");
+                var s05Questions = new List<QuestionData>();
+                if (qTraits != null) s05Questions.Add(qTraits);
+                if (qRecords != null) s05Questions.Add(qRecords);
+                if (s05Questions.Count > 0)
+                {
+                    SetPrivateObject(controller, "validationQuestions", s05Questions.ToArray());
+                }
+
+                EditorSceneManager.MarkSceneDirty(scene);
+                EditorSceneManager.SaveScene(scene);
+                Debug.Log($"Successfully linked {cows.Length} cows and {s05Questions.Count} validation questions to ValidationDashboardController.");
+            }
+            else
+            {
+                Debug.LogWarning($"Could not find ValidationDashboardController in '{ValidationScenePath}' to link cows.");
+            }
+        }
+
+        private static void LinkCowsToCowScanDecision(CowData[] cows)
+        {
+            var scene = EditorSceneManager.OpenScene(CowScanScenePath, OpenSceneMode.Single);
+            var controller = Object.FindFirstObjectByType<CowScanController>();
+            if (controller != null)
+            {
+                SetPrivateObject(controller, "availableCows", cows);
+                EditorSceneManager.MarkSceneDirty(scene);
+                EditorSceneManager.SaveScene(scene);
+                Debug.Log($"Successfully linked {cows.Length} cows to CowScanController in '{CowScanScenePath}'.");
+            }
+            else
+            {
+                Debug.LogWarning($"Could not find CowScanController in '{CowScanScenePath}' to link cows.");
+            }
+        }
+
+        private static void SetPrivateObject(Object target, string fieldName, object value)
+        {
+            var field = target.GetType().GetField(fieldName, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            if (field != null)
+            {
+                field.SetValue(target, value);
+                EditorUtility.SetDirty(target);
+            }
         }
     }
 }

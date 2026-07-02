@@ -21,6 +21,13 @@ namespace VeterinarVR.Gameplay
         [SerializeField] private int scanReward = 10;
         [SerializeField] private int scanMistakePenalty = 5;
 
+        [Header("MCQ Setup")]
+        [SerializeField] private CowData[] availableCows = Array.Empty<CowData>();
+        [SerializeField] private GameObject mcqPanelRoot;
+        [SerializeField] private Text mcqPromptLabel;
+        [SerializeField] private Button[] mcqOptionButtons;
+        [SerializeField] private Text[] mcqOptionLabels;
+
         private TrainingContentCatalog contentCatalog;
         private int appliedScoreDelta;
         private int appliedCorrectDelta;
@@ -28,6 +35,9 @@ namespace VeterinarVR.Gameplay
         public bool HasCompletedScan { get; private set; }
         public string ActiveCowId { get; private set; } = string.Empty;
         public string SelectedFindingId { get; private set; } = string.Empty;
+
+        private QuestionData activeQuestion;
+        private bool hasAnsweredQuestion;
 
         public event Action<string> ScanStarted;
         public event Action<string, bool> ScanCompleted;
@@ -149,13 +159,120 @@ namespace VeterinarVR.Gameplay
                 }
             }
 
-            RefreshView(suspectedIssueFound
-                ? IsBahasa()
-                    ? $"{GetFindingDisplayName(SelectedFindingId)} ialah petunjuk pembiakan terbaik untuk {GetCowDisplayName(ActiveCowId)}."
-                    : $"{GetFindingDisplayName(SelectedFindingId)} is the best breeding indicator for {GetCowDisplayName(ActiveCowId)}."
-                : IsBahasa()
-                    ? $"{GetFindingDisplayName(SelectedFindingId)} bukan petunjuk pembiakan terkuat untuk {GetCowDisplayName(ActiveCowId)}."
-                    : $"{GetFindingDisplayName(SelectedFindingId)} is not the strongest breeding indicator for {GetCowDisplayName(ActiveCowId)}.");
+            // Find CowData to check for MCQ
+            activeQuestion = null;
+            hasAnsweredQuestion = false;
+            foreach (var cow in availableCows)
+            {
+                if (cow != null && cow.CowId == ActiveCowId)
+                {
+                    if (cow.QuestionSet != null && cow.QuestionSet.Count > 0)
+                    {
+                        activeQuestion = cow.QuestionSet[0];
+                    }
+                    break;
+                }
+            }
+
+            if (suspectedIssueFound && activeQuestion != null)
+            {
+                // Show MCQ Panel
+                if (mcqPanelRoot != null)
+                {
+                    mcqPanelRoot.SetActive(true);
+                }
+                
+                if (mcqPromptLabel != null)
+                {
+                    mcqPromptLabel.text = activeQuestion.Prompt;
+                }
+
+                for (int i = 0; i < mcqOptionButtons.Length; i++)
+                {
+                    if (mcqOptionButtons[i] != null)
+                    {
+                        if (i < activeQuestion.AnswerOptions.Count)
+                        {
+                            mcqOptionButtons[i].gameObject.SetActive(true);
+                            if (mcqOptionLabels != null && i < mcqOptionLabels.Length && mcqOptionLabels[i] != null)
+                            {
+                                mcqOptionLabels[i].text = activeQuestion.AnswerOptions[i];
+                            }
+                        }
+                        else
+                        {
+                            mcqOptionButtons[i].gameObject.SetActive(false);
+                        }
+                    }
+                }
+                
+                RefreshView(IsBahasa()
+                    ? $"Sila jawab soalan pengesahan untuk {GetCowDisplayName(ActiveCowId)}."
+                    : $"Please answer the validation question for {GetCowDisplayName(ActiveCowId)}.");
+            }
+            else
+            {
+                if (mcqPanelRoot != null)
+                {
+                    mcqPanelRoot.SetActive(false);
+                }
+                
+                RefreshView(suspectedIssueFound
+                    ? IsBahasa()
+                        ? $"{GetFindingDisplayName(SelectedFindingId)} ialah petunjuk pembiakan terbaik untuk {GetCowDisplayName(ActiveCowId)}."
+                        : $"{GetFindingDisplayName(SelectedFindingId)} is the best breeding indicator for {GetCowDisplayName(ActiveCowId)}."
+                    : IsBahasa()
+                        ? $"{GetFindingDisplayName(SelectedFindingId)} bukan petunjuk pembiakan terkuat untuk {GetCowDisplayName(ActiveCowId)}."
+                        : $"{GetFindingDisplayName(SelectedFindingId)} is not the strongest breeding indicator for {GetCowDisplayName(ActiveCowId)}.");
+            }
+        }
+
+        public void AnswerScanQuestion(int optionIndex)
+        {
+            if (activeQuestion == null || hasAnsweredQuestion)
+            {
+                return;
+            }
+
+            hasAnsweredQuestion = true;
+            bool isCorrect = optionIndex == activeQuestion.CorrectAnswerIndex;
+
+            if (isCorrect)
+            {
+                if (scoreManager != null)
+                {
+                    scoreManager.AwardPoints(activeQuestion.ScoreValue);
+                }
+                else if (sessionState != null)
+                {
+                    sessionState.ApplyScoreDelta(activeQuestion.ScoreValue, 1, 0);
+                }
+
+                AudioRuntimeDirector.PlayUiConfirm();
+                RefreshView(IsBahasa() ? "Betul! Anda boleh meneruskan." : "Correct! You may proceed.");
+            }
+            else
+            {
+                if (scoreManager != null)
+                {
+                    scoreManager.RegisterMistake(activeQuestion.ScoreValue / 2);
+                }
+                else if (sessionState != null)
+                {
+                    sessionState.ApplyScoreDelta(-activeQuestion.ScoreValue / 2, 0, 1);
+                }
+
+                AudioRuntimeDirector.PlayUiClick(); // error tone fallback
+                RefreshView(IsBahasa() 
+                    ? "Jawapan salah. Lencana anda akan diturunkan sedikit, tetapi anda boleh meneruskan."
+                    : "Incorrect answer. Your badge score is slightly penalized, but you may proceed.");
+            }
+
+            // Once answered, hide MCQ options and show proceed button
+            if (mcqPanelRoot != null)
+            {
+                mcqPanelRoot.SetActive(false);
+            }
         }
 
         public void ResetScan()
@@ -195,7 +312,7 @@ namespace VeterinarVR.Gameplay
 
             if (proceedButtonRoot != null)
             {
-                proceedButtonRoot.SetActive(HasCompletedScan);
+                proceedButtonRoot.SetActive(HasCompletedScan && (activeQuestion == null || hasAnsweredQuestion));
             }
 
             if (feedbackLabel != null)

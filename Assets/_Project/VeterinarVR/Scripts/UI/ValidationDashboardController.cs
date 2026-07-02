@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using VeterinarVR.Audio;
@@ -19,7 +20,20 @@ namespace VeterinarVR.UI
         [SerializeField] private Text statusLabel;
         [SerializeField] private GameObject proceedButtonRoot;
 
+        [Header("Validation MCQ")]
+        [SerializeField] private QuestionData[] validationQuestions = new QuestionData[0];
+        [SerializeField] private GameObject mcqPanelRoot;
+        [SerializeField] private Text mcqPromptLabel;
+        [SerializeField] private Button[] mcqOptionButtons;
+        [SerializeField] private Text[] mcqOptionLabels;
+        [SerializeField] private Text mcqFeedbackLabel;
+
         private TrainingContentCatalog contentCatalog;
+        private readonly Queue<QuestionData> pendingValidationQuestions = new Queue<QuestionData>();
+        private QuestionData activeValidationQuestion;
+        private int answeredValidationCount;
+        private bool allValidationAnswered;
+
         public string SelectedCowId => sessionState != null ? sessionState.SelectedCowId : string.Empty;
         public int AvailableCowCount => availableCows.Length;
 
@@ -40,7 +54,98 @@ namespace VeterinarVR.UI
 
         private void Start()
         {
+            // Queue up validation questions
+            pendingValidationQuestions.Clear();
+            answeredValidationCount = 0;
+            allValidationAnswered = validationQuestions.Length == 0; // skip gate if none configured
+            foreach (var q in validationQuestions)
+            {
+                if (q != null)
+                {
+                    pendingValidationQuestions.Enqueue(q);
+                }
+            }
+
+            if (mcqPanelRoot != null)
+            {
+                mcqPanelRoot.SetActive(false);
+            }
+
             RefreshView();
+
+            // Show first validation question immediately
+            if (pendingValidationQuestions.Count > 0)
+            {
+                ShowNextValidationQuestion();
+            }
+        }
+
+        private void ShowNextValidationQuestion()
+        {
+            if (pendingValidationQuestions.Count == 0)
+            {
+                activeValidationQuestion = null;
+                allValidationAnswered = true;
+                if (mcqPanelRoot != null) mcqPanelRoot.SetActive(false);
+                RefreshView();
+                return;
+            }
+
+            activeValidationQuestion = pendingValidationQuestions.Dequeue();
+
+            if (mcqPanelRoot != null) mcqPanelRoot.SetActive(true);
+
+            if (mcqPromptLabel != null)
+            {
+                mcqPromptLabel.text = activeValidationQuestion.Prompt;
+            }
+
+            for (int i = 0; i < mcqOptionButtons.Length; i++)
+            {
+                if (mcqOptionButtons[i] == null) continue;
+                if (i < activeValidationQuestion.AnswerOptions.Count)
+                {
+                    mcqOptionButtons[i].gameObject.SetActive(true);
+                    if (mcqOptionLabels != null && i < mcqOptionLabels.Length && mcqOptionLabels[i] != null)
+                    {
+                        mcqOptionLabels[i].text = activeValidationQuestion.AnswerOptions[i];
+                    }
+                }
+                else
+                {
+                    mcqOptionButtons[i].gameObject.SetActive(false);
+                }
+            }
+
+            if (mcqFeedbackLabel != null) mcqFeedbackLabel.text = string.Empty;
+        }
+
+        public void AnswerValidationQuestion(int optionIndex)
+        {
+            if (activeValidationQuestion == null) return;
+
+            bool isCorrect = optionIndex == activeValidationQuestion.CorrectAnswerIndex;
+            answeredValidationCount++;
+
+            if (isCorrect)
+            {
+                if (sessionState != null) sessionState.ApplyScoreDelta(activeValidationQuestion.ScoreValue, 1, 0);
+                AudioRuntimeDirector.PlayUiConfirm();
+                if (mcqFeedbackLabel != null)
+                    mcqFeedbackLabel.text = IsBahasa() ? "Betul! Soalan seterusnya..." : "Correct! Next question...";
+            }
+            else
+            {
+                if (sessionState != null) sessionState.ApplyScoreDelta(-activeValidationQuestion.ScoreValue / 2, 0, 1);
+                AudioRuntimeDirector.PlayUiClick();
+                if (mcqFeedbackLabel != null)
+                    mcqFeedbackLabel.text = IsBahasa() ? "Salah. Sila teruskan." : "Incorrect. Moving on.";
+            }
+
+            activeValidationQuestion = null;
+
+            // Small delay before showing next (done via immediate call; no coroutine needed for now)
+            ShowNextValidationQuestion();
         }
 
         public void MarkBred()
@@ -55,6 +160,14 @@ namespace VeterinarVR.UI
 
         public void ProceedToResults()
         {
+            if (!allValidationAnswered)
+            {
+                RefreshView(IsBahasa()
+                    ? "Sila jawab semua soalan pengesahan terlebih dahulu."
+                    : "Please answer all validation questions first.");
+                return;
+            }
+
             if (sessionState == null || string.IsNullOrWhiteSpace(sessionState.ValidationDecision) || sceneLoader == null)
             {
                 return;
@@ -151,7 +264,19 @@ namespace VeterinarVR.UI
 
             if (proceedButtonRoot != null)
             {
-                proceedButtonRoot.SetActive(sessionState != null && !string.IsNullOrWhiteSpace(sessionState.ValidationDecision));
+                proceedButtonRoot.SetActive(
+                    allValidationAnswered &&
+                    sessionState != null &&
+                    !string.IsNullOrWhiteSpace(sessionState.ValidationDecision));
+            }
+        }
+
+        private void RefreshView(string feedback = "")
+        {
+            RefreshView();
+            if (statusLabel != null && !string.IsNullOrWhiteSpace(feedback))
+            {
+                statusLabel.text = feedback;
             }
         }
 
