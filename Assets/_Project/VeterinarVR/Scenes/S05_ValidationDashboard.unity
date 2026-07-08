@@ -14,7 +14,7 @@ OcclusionCullingSettings:
 RenderSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 10
-  m_Fog: 0
+  m_Fog: 1
   m_FogColor: {r: 0.72, g: 0.76, b: 0.8, a: 1}
   m_FogMode: 1
   m_FogDensity: 0.01
@@ -1925,7 +1925,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::VeterinarVR.UI.ValidationDashboardController
   sessionState: {fileID: 0}
   sceneLoader: {fileID: 0}
-  availableCows: []
+  availableCows:
+  - {fileID: 11400000, guid: 9e71f91f3e9fd4a80a10508c31cc6a99, type: 2}
+  - {fileID: 11400000, guid: 806a2832af2484bc09fbed09affaf72d, type: 2}
+  - {fileID: 11400000, guid: b19cc24b5f86641cbaadf533ee31a610, type: 2}
   selectedCowLabel: {fileID: 868951141}
   selectedFindingLabel: {fileID: 1623885055}
   procedureStatusLabel: {fileID: 1820095814}
@@ -1933,6 +1936,14 @@ MonoBehaviour:
   decisionLabel: {fileID: 2061838060}
   statusLabel: {fileID: 1737324281}
   proceedButtonRoot: {fileID: 590840928}
+  validationQuestions:
+  - {fileID: 11400000, guid: 948e2fe5bf79d4832a94ba5a09de5cc7, type: 2}
+  - {fileID: 11400000, guid: 123f770b0277a4e96ab0c4b698491b21, type: 2}
+  mcqPanelRoot: {fileID: 0}
+  mcqPromptLabel: {fileID: 0}
+  mcqOptionButtons: []
+  mcqOptionLabels: []
+  mcqFeedbackLabel: {fileID: 0}
 --- !u!4 &975425648
 Transform:
   m_ObjectHideFlags: 0
