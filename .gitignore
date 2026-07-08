@@ -36,6 +36,7 @@
 # Local source-download staging outside Unity import path
 /hospital/
 /warehouse/
+/insemination/
 /exports/
 /SourceAssets/
 /avatar-*.glb
@@ -55,6 +56,20 @@
 /Assets/Farm Animal Sounds.meta
 /Assets/ThirdParty/Free/CGTrader/
 /Assets/ThirdParty/Free/CGTrader.meta
+/Assets/Streamoji/
+/Assets/Streamoji.meta
+
+# Generated/editor template assets
+/Assets/TutorialInfo/
+/Assets/TutorialInfo.meta
+/Assets/Plane.mat
+/Assets/Plane.mat.meta
+/Assets/Scenes/StreamojiAvatarScene.unity
+/Assets/Scenes/StreamojiAvatarScene.unity.meta
+/Assets/Resources/
+/Assets/Resources.meta
+/ProjectSettings/ProjectAuditorSettings.asset
+/zed_ide_agent
 
 # Plastic SCM local metadata
 /.plastic/
