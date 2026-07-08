@@ -11,13 +11,13 @@ namespace VeterinarVR.Gameplay
         [SerializeField] private float maxAllowedAngle = 60f;
         [SerializeField] private float hapticInterval = 0.5f;
 
-        private XRBaseInteractable interactable;
+        private UnityEngine.XR.Interaction.Toolkit.Interactables.XRBaseInteractable interactable;
         private bool isInsideVulvaZone;
         private float lastHapticTime;
 
         private void Awake()
         {
-            interactable = GetComponent<XRBaseInteractable>();
+            interactable = GetComponent<UnityEngine.XR.Interaction.Toolkit.Interactables.XRBaseInteractable>();
             if (procedureController == null)
             {
                 procedureController = FindFirstObjectByType<AIProcedureController>();
@@ -68,9 +68,9 @@ namespace VeterinarVR.Gameplay
             
             foreach (var interactor in interactable.interactorsSelecting)
             {
-                if (interactor is XRBaseControllerInteractor controllerInteractor && controllerInteractor.xrController != null)
+                if (interactor is UnityEngine.XR.Interaction.Toolkit.Interactors.XRBaseInputInteractor controllerInteractor)
                 {
-                    controllerInteractor.xrController.SendHapticImpulse(0.8f, 0.2f);
+                    controllerInteractor.SendHapticImpulse(0.8f, 0.2f);
                 }
             }
         }

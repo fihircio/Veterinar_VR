@@ -3,6 +3,7 @@ using UnityEngine.UI;
 using VeterinarVR.Audio;
 using VeterinarVR.Core;
 using VeterinarVR.Data;
+using VeterinarVR.XR;
 
 namespace VeterinarVR.UI
 {
