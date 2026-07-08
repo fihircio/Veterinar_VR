@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4576134b84bafc22c8302f5df022eaed, type: 3}
+  m_Name: Q_S03_Ready
+  m_EditorClassIdentifier: Assembly-CSharp::VeterinarVR.Data.QuestionData
+  questionId: Q_S03_Ready
+  prompt: "Is Cow B ready for insemination based on the scan parameters (38.5\xB0C
+    and mature follicle)?"
+  answerOptions:
+  - Yes (Mature follicle and normal temperature)
+  - No (Follicle is too small)
+  - No (Temperature indicates fever)
+  correctAnswerIndex: 0
+  scoreValue: 10
