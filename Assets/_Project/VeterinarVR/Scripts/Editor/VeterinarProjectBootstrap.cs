@@ -152,6 +152,12 @@ namespace VeterinarVR.Editor
             BuildCowScanDecisionScene();
         }
 
+        [MenuItem("Veterinar VR/Bootstrap/Full Rebuild S03 (Scene + Dressings + Cow)")]
+        public static void FullRebuildS03FromMenu()
+        {
+            FullRebuildS03();
+        }
+
         [MenuItem("Veterinar VR/Bootstrap/Build AI Procedure Scene")]
         public static void BuildAIProcedureSceneFromMenu()
         {
@@ -344,6 +350,8 @@ namespace VeterinarVR.Editor
         {
             EnsureFolder(ScenesFolder);
 
+            EnableHandTracking();
+
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             scene.name = SceneIds.CowScanDecision;
 
@@ -358,6 +366,33 @@ namespace VeterinarVR.Editor
             EditorSceneManager.SaveScene(scene, CowScanScenePath);
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
+        }
+
+        public static void FullRebuildS03()
+        {
+            EnsureToonFarmSceneDressings();
+            EnsureGroundMaterials();
+
+            BuildCowScanDecisionScene();
+
+            ApplyDressingToScene(CowScanScenePath, "CowScanEnvironment", ScanDressingPrefabPath);
+            ApplyDressingToScene(CowScanScenePath, "CowScanEnvironment", NaturePackScanDressingPrefabPath, "NaturePack2Dressing");
+
+            var daySkybox = AssetDatabase.LoadAssetAtPath<Material>(AllSkyDayBlueSkyPath);
+            ApplySkyboxToScene(CowScanScenePath, daySkybox);
+
+            ReplaceCowVisualsInScene(CowScanScenePath, new[]
+            {
+                ("ScanCow", AnimalPackCow2PrefabPath)
+            });
+
+            var grass = AssetDatabase.LoadAssetAtPath<Material>(GroundGrassMaterialPath);
+            if (grass != null)
+            {
+                ApplyGroundMaterialToScene(CowScanScenePath, grass);
+            }
+
+            Debug.Log("S03 full rebuild complete: scene + dressings + skybox + cow + ground.");
         }
 
         public static void BuildAIProcedureScene()
@@ -1601,6 +1636,7 @@ namespace VeterinarVR.Editor
             {
                 instance.name = "XR Origin (VR)";
                 instance.transform.position = Vector3.zero;
+                instance.AddComponent<VeterinarVR.Gameplay.HandTrackingSetup>();
             }
         }
 
@@ -1655,27 +1691,32 @@ namespace VeterinarVR.Editor
 
             var scanCow = CreateCowPlaceholder(environmentRoot.transform, "ScanCow", new Vector3(0f, 0f, 5f), new Color(0.65f, 0.55f, 0.42f));
 
-            var marker = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            marker.name = "ScanMarker";
-            marker.transform.SetParent(environmentRoot.transform);
-            marker.transform.position = new Vector3(0f, 0.02f, 5f);
-            marker.transform.localScale = new Vector3(1.4f, 0.02f, 1.4f);
+            var vulvaTarget = new GameObject("VulvaTarget");
+            vulvaTarget.transform.SetParent(scanCow.transform, false);
+            vulvaTarget.transform.localPosition = new Vector3(0f, -0.35f, 0.9f);
 
-            var renderer = marker.GetComponent<Renderer>();
-            if (renderer != null)
+            var vulvaRuler = vulvaTarget.AddComponent<VeterinarVR.Gameplay.VulvaRuler>();
+            var vulvaCollider = vulvaTarget.AddComponent<SphereCollider>();
+            vulvaCollider.radius = 0.15f;
+            vulvaCollider.isTrigger = true;
+
+            var vulvaRenderer = vulvaTarget.AddComponent<MeshRenderer>();
+            var vulvaFilter = vulvaTarget.AddComponent<MeshFilter>();
+            vulvaFilter.sharedMesh = Resources.GetBuiltinResource<Mesh>("Sphere.fbx");
+            if (vulvaFilter.sharedMesh == null)
             {
-                renderer.sharedMaterial.color = new Color(0.18f, 0.55f, 0.3f, 1f);
+                var sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                vulvaFilter.sharedMesh = sphere.GetComponent<MeshFilter>().sharedMesh;
+                Object.DestroyImmediate(sphere);
             }
 
-            var scanBounds = CalculateCombinedBounds(scanCow);
-            var localCenter = scanCow.transform.InverseTransformPoint(scanBounds.center);
-            var tailPosition = new Vector3(localCenter.x, localCenter.y + (scanBounds.extents.y * 0.45f), localCenter.z + (scanBounds.extents.z * 0.82f));
-            var dischargePosition = new Vector3(localCenter.x, localCenter.y - (scanBounds.extents.y * 0.35f), localCenter.z + (scanBounds.extents.z * 0.9f));
-            var restlessPosition = new Vector3(localCenter.x + (scanBounds.extents.x * 0.85f), localCenter.y + (scanBounds.extents.y * 0.15f), localCenter.z);
+            var vulvaMaterial = new Material(Shader.Find("Standard"));
+            vulvaMaterial.color = new Color(0.9f, 0.35f, 0.55f, 0.6f);
+            vulvaRenderer.sharedMaterial = vulvaMaterial;
+            vulvaTarget.transform.localScale = Vector3.one * 0.22f;
 
-            CreateScanFindingHotspot(scanCow.transform, "TailRaiseHotspot", "TailRaise", tailPosition, new Color(0.34f, 0.52f, 0.85f, 1f));
-            CreateScanFindingHotspot(scanCow.transform, "MucusDischargeHotspot", "MucusDischarge", dischargePosition, new Color(0.22f, 0.7f, 0.42f, 1f));
-            CreateScanFindingHotspot(scanCow.transform, "RestlessnessHotspot", "Restlessness", restlessPosition, new Color(0.78f, 0.56f, 0.24f, 1f));
+            CreateWorldLocalizedLabel(vulvaTarget.transform, "VulvaLabel", "Vulva", "Vulva", new Vector3(0f, 0.2f, 0f), new Vector2(200f, 50f), 20);
+
             CreateWorldLocalizedLabel(scanCow.transform, "ScanCowLabel", "Scan Target", "Sasaran Imbasan", GetLabelAnchor(scanCow, 0.35f), new Vector2(340f, 72f), 28);
         }
 
@@ -2044,34 +2085,30 @@ namespace VeterinarVR.Editor
 
             CreateProgressStrip(panel.transform, SceneIds.CowScanDecision);
 
-            CreateLocalizedLabel("Title", panel.transform, "Cow Scan Decision", "Keputusan Imbasan Lembu", 62, new Vector2(0f, 260f), new Vector2(900f, 100f));
+            CreateLocalizedLabel("Title", panel.transform, "Cow Reproductive Evaluation", "Penilaian Reproduktif Lembu", 58, new Vector2(0f, 260f), new Vector2(1000f, 100f));
             var selectedCow = CreateLabel("SelectedCow", panel.transform, "Selected Cow: None", 30, new Vector2(0f, 170f), new Vector2(700f, 60f));
-            var status = CreateLabel("Status", panel.transform, "Start the scan to inspect heat indicators", 28, new Vector2(0f, 110f), new Vector2(900f, 60f));
-            var beginScanButton = CreateLocalizedButton("BeginScanButton", panel.transform, "Start Scan", "Mula Imbasan", new Vector2(0f, 25f), new Vector2(280f, 100f));
+            var status = CreateLabel("Status", panel.transform, "Pinch thumb & index finger near the vulva to measure", 26, new Vector2(0f, 100f), new Vector2(950f, 70f));
+            CreateLocalizedLabel("Hint", panel.transform, "Bring both hands near the cow's vulva, pinch and spread fingers to measure.", "Dekatkan kedua-dua tangan ke vulva lembu, cubit dan renggang jari untuk mengukur.", 22, new Vector2(0f, 30f), new Vector2(960f, 60f));
 
-            var findingsRoot = new GameObject("FindingsRoot");
-            findingsRoot.transform.SetParent(panel.transform, false);
-            var findingsRect = findingsRoot.AddComponent<RectTransform>();
-            findingsRect.sizeDelta = new Vector2(980f, 120f);
-            findingsRect.anchoredPosition = new Vector2(0f, -60f);
+            var measurement = CreateLabel("Measurement", panel.transform, string.Empty, 32, new Vector2(0f, -30f), new Vector2(800f, 60f));
+            var feedback = CreateLabel("Feedback", panel.transform, string.Empty, 26, new Vector2(0f, -100f), new Vector2(940f, 60f));
+            var proceedButton = CreateLocalizedButton("ProceedButton", panel.transform, "Continue Procedure", "Teruskan Prosedur", new Vector2(0f, -220f), new Vector2(360f, 100f));
 
-            CreateLocalizedLabel("WorldHint", findingsRoot.transform, "Select one hotspot on the cow to record your finding.", "Pilih satu hotspot pada lembu untuk merekodkan petunjuk anda.", 24, Vector2.zero, new Vector2(920f, 60f));
-
-            var feedback = CreateLabel("Feedback", panel.transform, string.Empty, 28, new Vector2(0f, -180f), new Vector2(940f, 80f));
-            var proceedButton = CreateLocalizedButton("ProceedButton", panel.transform, "Continue Procedure", "Teruskan Prosedur", new Vector2(0f, -285f), new Vector2(360f, 100f));
-
-            findingsRoot.SetActive(false);
             proceedButton.gameObject.SetActive(false);
 
-            UnityEventTools.AddPersistentListener(beginScanButton.onClick, controller.BeginScan);
             UnityEventTools.AddPersistentListener(proceedButton.onClick, controller.ProceedToResults);
 
             SetPrivateObject(controller, "selectedCowLabel", selectedCow);
             SetPrivateObject(controller, "statusLabel", status);
             SetPrivateObject(controller, "feedbackLabel", feedback);
-            SetPrivateObject(controller, "findingsRoot", findingsRoot);
+            SetPrivateObject(controller, "measurementLabel", measurement);
             SetPrivateObject(controller, "proceedButtonRoot", proceedButton.gameObject);
-            SetPrivateObject(controller, "correctFindingId", "MucusDischarge");
+
+            var vulvaTarget = GameObject.Find("VulvaTarget");
+            if (vulvaTarget != null)
+            {
+                SetPrivateObject(controller, "vulvaRulerObject", vulvaTarget);
+            }
         }
 
         private static void CreateAIProcedureCanvas()
@@ -3190,6 +3227,47 @@ namespace VeterinarVR.Editor
             {
                 Debug.LogWarning($"Could not find ValidationDashboardController in '{ValidationScenePath}' to link cows.");
             }
+        }
+
+        private static void EnableHandTracking()
+        {
+            var configType = System.Type.GetType("OVRProjectConfig, com.meta.xr.sdk.core.Editor");
+            if (configType == null)
+            {
+                Debug.LogWarning("Could not find OVRProjectConfig type to enable hand tracking.");
+                return;
+            }
+
+            var configs = AssetDatabase.FindAssets("t:OVRProjectConfig");
+            if (configs.Length == 0)
+            {
+                Debug.LogWarning("No OVRProjectConfig asset found. Hand tracking must be enabled manually in Meta Quest Features.");
+                return;
+            }
+
+            var configPath = AssetDatabase.GUIDToAssetPath(configs[0]);
+            var config = AssetDatabase.LoadAssetAtPath<Object>(configPath);
+            if (config == null)
+            {
+                return;
+            }
+
+            var serializedConfig = new SerializedObject(config);
+            var handTrackingProp = serializedConfig.FindProperty("handTrackingSupport");
+            if (handTrackingProp != null && handTrackingProp.intValue == 0)
+            {
+                handTrackingProp.intValue = 1;
+            }
+
+            var handFrequencyProp = serializedConfig.FindProperty("handTrackingFrequency");
+            if (handFrequencyProp != null && handFrequencyProp.intValue == 0)
+            {
+                handFrequencyProp.intValue = 1;
+            }
+
+            serializedConfig.ApplyModifiedProperties();
+            AssetDatabase.SaveAssets();
+            Debug.Log("Hand tracking enabled: ControllersAndHands at HIGH frequency");
         }
 
         private static void LinkCowsToCowScanDecision(CowData[] cows)

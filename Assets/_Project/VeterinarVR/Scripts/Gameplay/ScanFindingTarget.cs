@@ -6,19 +6,16 @@ namespace VeterinarVR.Gameplay
 {
     public sealed class ScanFindingTarget : MonoBehaviour
     {
-        [SerializeField] private CowScanController scanController;
         [SerializeField] private string findingId = string.Empty;
         [SerializeField] private Renderer targetRenderer;
         [SerializeField] private SphereCollider targetCollider;
         [SerializeField] private Color idleColor = new(0.24f, 0.38f, 0.62f, 1f);
         [SerializeField] private Color hoverColor = new(0.8f, 0.78f, 0.28f, 1f);
-        [SerializeField] private Color selectedColor = new(0.2f, 0.68f, 0.34f, 1f);
         [SerializeField] private float colliderPadding = 1.35f;
 
         private XRSimpleInteractable simpleInteractable;
         private Material materialInstance;
         private bool isHovered;
-        private bool isSelected;
 
         private void Awake()
         {
@@ -91,18 +88,11 @@ namespace VeterinarVR.Gameplay
 
         private void OnEnable()
         {
-            TryBindController();
-
             if (simpleInteractable != null)
             {
                 simpleInteractable.hoverEntered.AddListener(OnHoverEntered);
                 simpleInteractable.hoverExited.AddListener(OnHoverExited);
                 simpleInteractable.selectEntered.AddListener(OnSelectEntered);
-            }
-
-            if (scanController != null)
-            {
-                scanController.ScanCompleted += HandleScanCompleted;
             }
         }
 
@@ -113,11 +103,6 @@ namespace VeterinarVR.Gameplay
                 simpleInteractable.hoverEntered.RemoveListener(OnHoverEntered);
                 simpleInteractable.hoverExited.RemoveListener(OnHoverExited);
                 simpleInteractable.selectEntered.RemoveListener(OnSelectEntered);
-            }
-
-            if (scanController != null)
-            {
-                scanController.ScanCompleted -= HandleScanCompleted;
             }
         }
 
@@ -140,12 +125,7 @@ namespace VeterinarVR.Gameplay
 
         public void ConfirmFinding()
         {
-            TryBindController();
-
-            if (scanController != null)
-            {
-                scanController.CompleteScan(findingId);
-            }
+            Debug.Log($"ScanFindingTarget '{findingId}' selected.");
         }
 
         private void OnHoverEntered(HoverEnterEventArgs _)
@@ -163,20 +143,6 @@ namespace VeterinarVR.Gameplay
         private void OnSelectEntered(SelectEnterEventArgs _)
         {
             ConfirmFinding();
-        }
-
-        private void HandleScanCompleted(string _, bool __)
-        {
-            isSelected = string.Equals(scanController.SelectedFindingId, findingId, System.StringComparison.OrdinalIgnoreCase);
-            RefreshVisual();
-        }
-
-        private void TryBindController()
-        {
-            if (scanController == null)
-            {
-                scanController = FindFirstObjectByType<CowScanController>();
-            }
         }
 
         private void RefreshCollider()
@@ -204,11 +170,7 @@ namespace VeterinarVR.Gameplay
                 return;
             }
 
-            materialInstance.color = isSelected
-                ? selectedColor
-                : isHovered
-                    ? hoverColor
-                    : idleColor;
+            materialInstance.color = isHovered ? hoverColor : idleColor;
         }
     }
 }

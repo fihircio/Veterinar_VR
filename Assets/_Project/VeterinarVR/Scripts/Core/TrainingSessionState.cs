@@ -47,6 +47,12 @@ namespace VeterinarVR.Core
         [field: SerializeField]
         public int SpatialErrorCount { get; private set; }
 
+        [field: SerializeField]
+        public float MeasuredVulvaSize { get; private set; }
+
+        [field: SerializeField]
+        public float MeasuredMucusDischarge { get; private set; }
+
         private void Awake()
         {
             if (Instance != null && Instance != this)
@@ -121,6 +127,16 @@ namespace VeterinarVR.Core
             SelectedSemenType = semenType ?? string.Empty;
         }
 
+        public void SetMeasuredVulvaSize(float sizeCm)
+        {
+            MeasuredVulvaSize = Mathf.Max(0f, sizeCm);
+        }
+
+        public void SetMeasuredMucusDischarge(float sizeCm)
+        {
+            MeasuredMucusDischarge = Mathf.Max(0f, sizeCm);
+        }
+
         public void IncrementSpatialErrors()
         {
             SpatialErrorCount++;
@@ -142,6 +158,8 @@ namespace VeterinarVR.Core
             ElapsedTime = 0f;
             SelectedSemenType = string.Empty;
             SpatialErrorCount = 0;
+            MeasuredVulvaSize = 0f;
+            MeasuredMucusDischarge = 0f;
         }
     }
 }
